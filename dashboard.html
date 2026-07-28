@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Worker Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial,sans-serif;
+}
+
+body{
+    background:url("banner.jpg") center center/cover no-repeat;
+    padding:20px;
+    min-height:100vh;
+}
+
+h1{
+    text-align:center;
+    color:#2e7d32;
+    margin-bottom:20px;
+}
+
+.table-container{
+    background:#fff;
+    border-radius:10px;
+    overflow-x:auto;
+    box-shadow:0 4px 12px rgba(0,0,0,.15);
+}
+
+/* Name column: approximately 12 letters */
+th:nth-child(1),
+td:nth-child(1){
+    width:120px;
+    max-width:120px;
+}
+
+/* Age column: approximately 10 letters */
+th:nth-child(2),
+td:nth-child(2){
+    width:90px;
+    max-width:90px;
+}
+
+/* Task column: approximately 6 letters */
+th:nth-child(3),
+td:nth-child(3){
+    width:65px;
+    max-width:65px;
+}
+
+/* S column: one letter */
+th:nth-child(4),
+td:nth-child(4){
+    width:25px;
+    max-width:25px;
+}
+
+/* Approve and Reject columns */
+th:nth-child(5),
+td:nth-child(5),
+th:nth-child(6),
+td:nth-child(6){
+    width:75px;
+    max-width:75px;
+}
+
+th{
+    background:#2e7d32;
+    color:white;
+    padding:6px;
+    font-size:12px;
+}
+
+td{
+    padding:3px 2px;
+    text-align:center;
+    border-bottom:1px solid #ddd;
+    font-size:11px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+button{
+    padding:3px 5px;
+    font-size:10px;
+    line-height:16px;
+    height:24px;
+    border:none;
+    border-radius:4px;
+    color:white;
+    cursor:pointer;
+}
+
+.approve{
+    background:#28a745;
+}
+
+.reject{
+    background:#dc3545;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Workers Dashboard</h1>
+
+<div style="text-align:center; margin-bottom:15px;">
+    <button
+        onclick="toggleDeleteMode()"
+        style="background:#dc3545;color:white;padding:10px 18px;font-size:14px;border:none;border-radius:6px;">
+        🗑 Clear Mode
+    </button>
+</div>
+
+<div class="table-container">
+
+<table>
+
+<thead>
+
+<tr>
+<th>Name</th>
+<th>Age</th>
+<th>Task</th>
+<th>S</th>
+<th>✓</th>
+<th>✗</th>
+<th>🗑</th>
+</tr>
+
+</thead>
+
+<tbody id="workersTable">
+
+</tbody>
+
+</table>
+
+</div>
+
+<script>
+
+const { createClient } = supabase;
+
+const supabaseClient = createClient(
+    "https://mqiaibdurohbulekeyeh.supabase.co",
+    "sb_publishable_xxHQrwhHRVO2zPv95BRdXQ_gF0_qVJQ"
+);
+
+async function loadWorkers() {
+
+    const { data, error } = await supabaseClient
+        .from("submissions")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        console.error(error);
+        return;
+    }
+
+    const table = document.getElementById("workersTable");
+    table.innerHTML = "";
+
+    data.forEach(worker => {
+
+        table.innerHTML += `
+        <tr>
+            <td>${worker.name}</td>
+            <td>${worker.age}</td>
+            <td>${worker.task ?? ""}</td>
+            <td>${
+    worker.status === "Pending" ? "P" :
+    worker.status === "Approved" ? "A" :
+    worker.status === "Rejected" ? "R" : ""
+}</td>
+
+            <td>
+                <button
+                    class="approve"
+                    onclick="approveWorker(${worker.id})">
+                    Approve
+                </button>
+            </td>
+
+            <td>
+    <button
+        class="reject"
+        onclick="rejectWorker(${worker.id})">
+        Reject
+    </button>
+</td>
+
+<td>
+    <button
+        style="background:#6c757d"
+        onclick="deleteWorker(${worker.id}, event)">
+        Clear
+    </button>
+</td>
+
+</tr>`;
+    });
+
+}
+
+loadWorkers();
+
+supabaseClient
+.channel("workers-live")
+.on(
+    "postgres_changes",
+    {
+        event: "*",
+        schema: "public",
+        table: "submissions"
+    },
+    () => {
+
+        loadWorkers();
+
+    }
+)
+.subscribe();
+async function approveWorker(id){
+
+    const { error } = await supabaseClient
+        .from("submissions")
+        .update({
+            status: "Approved"
+        })
+        .eq("id", id);
+
+    if(error){
+        alert(error.message);
+        console.error(error);
+    }
+loadWorkers();
+}
+
+async function rejectWorker(id){
+
+    const { error } = await supabaseClient
+        .from("submissions")
+        .update({
+            status: "Rejected",
+            task: ""
+        })
+        .eq("id", id);
+
+    if(error){
+        alert(error.message);
+        console.error(error);
+    }
+loadWorkers();
+}
+let clearMode = false;
+
+function toggleDeleteMode(){
+
+    clearMode = !clearMode;
+
+    if(clearMode){
+        alert("Clear Mode ON.\nTap any worker row to permanently delete it.");
+    }else{
+        console.log("Clear Mode OFF.");
+    }
+
+}
+
+async function deleteWorker(id, event){
+
+    if(event) event.stopPropagation();
+
+    if(!clearMode){
+        alert("Turn on Clear Mode first.");
+        return;
+    }
+
+    if(!confirm("Delete this worker permanently?")) return;
+
+    const { error } = await supabaseClient
+        .from("submissions")
+        .delete()
+        .eq("id", id);
+
+    if(error){
+        alert(error.message);
+        return;
+    }
+
+    loadWorkers();
+}
+
+</script>
+
+</body>
+</html>
