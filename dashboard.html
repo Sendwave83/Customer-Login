@@ -187,8 +187,9 @@ async function sendNtfy(title,message){
         alert("ntfy status: " + response.status);
 
     }catch(err){
-        console.error(err);
-    }
+    console.error(err);
+    alert("NTFY ERROR: " + err.message);
+}
 }
 async function loadWorkers(){
 
